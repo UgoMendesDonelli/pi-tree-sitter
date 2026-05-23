@@ -38,6 +38,22 @@ export const analyzeTool = {
         description: "Maximum files to analyze (default: 200, safety limit)",
       }),
     ),
+    excludeDirs: Type.Optional(
+      Type.Array(Type.String(), {
+        description:
+          "Additional directories to exclude (merged with .tree-sitter.json + defaults like node_modules, dist, etc.)",
+      }),
+    ),
+    maxFileSize: Type.Optional(
+      Type.Number({
+        description: "Maximum file size in bytes (default: 1000000)",
+      }),
+    ),
+    maxDepth: Type.Optional(
+      Type.Number({
+        description: "Maximum directory recursion depth, 0 = unlimited (default: 0)",
+      }),
+    ),
   }),
   async execute(
     _toolCallId: string,
@@ -46,6 +62,9 @@ export const analyzeTool = {
       language?: string;
       groups?: string[];
       maxFiles?: number;
+      excludeDirs?: string[];
+      maxFileSize?: number;
+      maxDepth?: number;
     },
   ) {
     const result = await analyzeDirectory({
@@ -53,6 +72,9 @@ export const analyzeTool = {
       language: params.language,
       groups: params.groups,
       maxFiles: params.maxFiles ?? 200,
+      excludeDirs: params.excludeDirs,
+      maxFileSize: params.maxFileSize,
+      maxDepth: params.maxDepth,
     });
 
     const summary = {

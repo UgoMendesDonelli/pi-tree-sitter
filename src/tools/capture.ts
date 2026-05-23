@@ -38,6 +38,22 @@ export const captureTool = {
         description: "Max files when targeting a directory (default: 200)",
       }),
     ),
+    excludeDirs: Type.Optional(
+      Type.Array(Type.String(), {
+        description:
+          "Additional directories to exclude (merged with .tree-sitter.json + defaults)",
+      }),
+    ),
+    maxFileSize: Type.Optional(
+      Type.Number({
+        description: "Maximum file size in bytes (default: 1000000)",
+      }),
+    ),
+    maxDepth: Type.Optional(
+      Type.Number({
+        description: "Maximum directory recursion depth, 0 = unlimited (default: 0)",
+      }),
+    ),
   }),
   async execute(
     _toolCallId: string,
@@ -46,6 +62,9 @@ export const captureTool = {
       captureGroup: string;
       language?: string;
       maxFiles?: number;
+      excludeDirs?: string[];
+      maxFileSize?: number;
+      maxDepth?: number;
     },
   ) {
     const targetPath = params.path;
@@ -70,6 +89,9 @@ export const captureTool = {
         language: params.language,
         groups: [captureGroupName],
         maxFiles,
+        excludeDirs: params.excludeDirs,
+        maxFileSize: params.maxFileSize,
+        maxDepth: params.maxDepth,
       });
 
       return {

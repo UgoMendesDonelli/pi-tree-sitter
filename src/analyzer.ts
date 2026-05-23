@@ -17,10 +17,11 @@ import {
 import {
   getParser,
   parse,
-  getPrecedingComment,
-  stripCommentSyntax,
   type CachedParser,
 } from "./parser.ts";
+import { resolveConfig } from "./config.ts";
+import { processCaptureGroup as registryProcess } from "./handlers/registry.ts";
+import type { HandlerContext } from "./handlers/types.ts";;
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -77,6 +78,12 @@ export interface AnalyzeOptions {
   groups?: string[];
   maxFiles?: number;
   recursive?: boolean;
+  /** Override directories to exclude (merged with .tree-sitter.json + defaults) */
+  excludeDirs?: string[];
+  /** Override max file size in bytes */
+  maxFileSize?: number;
+  /** Override max directory recursion depth (0 = unlimited) */
+  maxDepth?: number;
 }
 
 // ─── File discovery ──────────────────────────────────────────────────
@@ -86,11 +93,13 @@ function findFiles(
   extensions: string[],
   maxFiles: number,
   recursive: boolean,
+  excludeDirs: string[],
+  maxDepth: number,
 ): string[] {
   const results: string[] = [];
   const extSet = new Set(extensions);
 
-  function walk(current: string): void {
+  function walk(current: string, depth = 0): void {
     if (results.length >= maxFiles) return;
     try {
       const entries = fs.readdirSync(current, { withFileTypes: true });
@@ -99,18 +108,13 @@ function findFiles(
 
         const fullPath = path.join(current, entry.name);
 
-        // Skip hidden and common non-source directories
+        // Skip hidden directories
         if (entry.name.startsWith(".")) continue;
-        if (
-          entry.isDirectory() &&
-          ["node_modules", "vendor", "dist", "build", "__pycache__", "target"].includes(
-            entry.name,
-          )
-        )
-          continue;
+        // Skip configured exclude directories
+        if (entry.isDirectory() && excludeDirs.includes(entry.name)) continue;
 
-        if (entry.isDirectory() && recursive) {
-          walk(fullPath);
+        if (entry.isDirectory() && recursive && (maxDepth === 0 || depth < maxDepth)) {
+          walk(fullPath, depth + 1);
         } else if (entry.isFile()) {
           const ext = entry.name.split(".").pop()?.toLowerCase();
           if (ext && extSet.has(ext)) {
@@ -134,6 +138,13 @@ export async function analyzeDirectory(
 ): Promise<AnalysisResult> {
   const maxFiles = opts.maxFiles ?? 200;
   const recursive = opts.recursive ?? true;
+
+  // Load configuration from .tree-sitter.json + overrides
+  const config = resolveConfig(opts.directory, {
+    excludeDirs: opts.excludeDirs,
+    maxFileSize: opts.maxFileSize,
+    maxDepth: opts.maxDepth,
+  });
 
   const result: AnalysisResult = {
     path: opts.directory,
@@ -165,8 +176,15 @@ export async function analyzeDirectory(
     extensions = getAllExtensions();
   }
 
-  // Discover files
-  const files = findFiles(opts.directory, extensions, maxFiles, recursive);
+  // Discover files with config
+  const files = findFiles(
+    opts.directory,
+    extensions,
+    maxFiles,
+    recursive,
+    config.excludeDirs,
+    config.maxDepth,
+  );
   result.filesFound = files.length;
 
   // Group files by language
@@ -202,8 +220,8 @@ export async function analyzeDirectory(
 
           // Skip empty / very large files
           if (source.trim().length === 0) continue;
-          if (source.length > 1_000_000) {
-            result.errors.push(`${file}: file too large (${source.length} bytes), skipping`);
+          if (source.length > config.maxFileSize) {
+            result.errors.push(`${file}: file too large (${source.length} bytes, max ${config.maxFileSize}), skipping`);
             continue;
           }
 
@@ -268,141 +286,9 @@ function processCaptureGroup(
         caps[cap.name] = cap.node;
       }
 
-      const loc = (node: Node): Location => ({
-        file,
-        startRow: node.startPosition.row,
-        startCol: node.startPosition.column,
-        endRow: node.endPosition.row,
-        endCol: node.endPosition.column,
-      });
-
-      switch (group.name) {
-        case "classes_and_modules":
-        case "classes": {
-          const node = caps["class_def"] || caps["module_def"];
-          if (!node) continue;
-          const nameNode = caps["class_name"] || caps["module_name"];
-          if (!nameNode) continue;
-
-          const className = nameNode.text;
-          const superclass = caps["superclass"]?.text;
-
-          let doc: DocComment | undefined;
-          if (group.capturesDoc) {
-            try {
-              const commentText = getPrecedingComment(rootNode, node);
-              if (commentText) {
-                doc = {
-                  text: commentText,
-                  cleaned: stripCommentSyntax(commentText, lang),
-                };
-              }
-            } catch {
-              // getPrecedingComment may fail on some files; skip
-            }
-          }
-
-          result.classes.push({
-            name: className,
-            location: loc(node),
-            superclass,
-            methods: [],
-            doc,
-          });
-          break;
-        }
-
-        case "methods":
-        case "functions": {
-          const node = caps["method_def"] || caps["func_def"] || caps["singleton_method_def"];
-          if (!node) continue;
-          const nameNode =
-            caps["method_name"] ||
-            caps["func_name"] ||
-            caps["singleton_method_name"];
-          if (!nameNode) continue;
-
-          const funcName = nameNode.text;
-          const params = caps["params"]?.text;
-
-          let doc: DocComment | undefined;
-          if (group.capturesDoc) {
-            try {
-              const commentText = getPrecedingComment(rootNode, node);
-              if (commentText) {
-                doc = {
-                  text: commentText,
-                  cleaned: stripCommentSyntax(commentText, lang),
-                };
-              }
-            } catch {
-              // getPrecedingComment may fail on some files; skip
-            }
-          }
-
-          const funcInfo: FunctionInfo = {
-            name: funcName,
-            location: loc(node),
-            params,
-            doc,
-          };
-
-          // Try to determine parent class from node ancestry
-          // and assign method to its class
-          let assignedToClass = false;
-          if (result.classes.length > 0) {
-            for (let i = result.classes.length - 1; i >= 0; i--) {
-              const cls = result.classes[i]!;
-              // Method belongs to class if it's inside the class's row range
-              if (
-                cls.location.file === file &&
-                cls.location.startRow <= node.startPosition.row &&
-                node.startPosition.row <= cls.location.endRow
-              ) {
-                cls.methods.push(funcInfo);
-                assignedToClass = true;
-                break;
-              }
-            }
-          }
-
-          // If not assigned to a class, it's a top-level function
-          if (!assignedToClass) {
-            result.functions.push(funcInfo);
-          }
-          break;
-        }
-
-        case "requires":
-        case "imports":
-        case "includes": {
-          const pathNode = caps["req_path"];
-          if (pathNode) {
-            result.imports.push({
-              type: "require",
-              path: pathNode.text,
-              location: loc(pathNode),
-            });
-          }
-          const importNode = caps["import"] || caps["import_from"];
-          if (importNode) {
-            result.imports.push({
-              type: "import",
-              path: importNode.text,
-              location: loc(importNode),
-            });
-          }
-          const includeNode = caps["include"];
-          if (includeNode) {
-            result.imports.push({
-              type: "include",
-              path: includeNode.text,
-              location: loc(includeNode),
-            });
-          }
-          break;
-        }
-      }
+      // Delegate to the handler registry instead of inline switch-case
+      const ctx: HandlerContext = { result, file, rootNode, lang, parserCtx, group };
+      registryProcess(group.name, caps, ctx);
     }
   } catch (err: any) {
     result.errors.push(

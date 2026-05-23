@@ -5,15 +5,39 @@
  * initParser must be called before these tests run.
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 import { initParser } from "../parser";
 import { analyzeDirectory } from "../analyzer";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = resolve(__dirname, "fixtures");
+
+// ─── Helper: temp dirs for config tests ─────────────────────────────
+
+const tempDirs: string[] = [];
+
+function makeTempDir(): string {
+  const d = mkdtempSync(resolve(tmpdir(), "pi-ts-int-"));
+  tempDirs.push(d);
+  return d;
+}
+
+function writeFile(dir: string, subpath: string, content: string): void {
+  const fullPath = resolve(dir, subpath);
+  mkdirSync(resolve(fullPath, ".."), { recursive: true });
+  writeFileSync(fullPath, content, "utf-8");
+}
+
+afterAll(() => {
+  for (const d of tempDirs) {
+    try { rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
 
 let parserInitialized = false;
 
@@ -209,5 +233,71 @@ describe("analyzeDirectory — assegnazione metodi a classi", () => {
     const topLevelNames = result.functions.map((f) => f.name);
     expect(topLevelNames).not.toContain("add");
     expect(topLevelNames).not.toContain("subtract");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// 6.7 excludeDirs
+// ══════════════════════════════════════════════════════════════════════
+
+describe("analyzeDirectory — excludeDirs", () => {
+  it("dovrebbe saltare le directory in excludeDirs", async () => {
+    const dir = makeTempDir();
+    writeFile(dir, "good/a.py", "print('hello')");
+    writeFile(dir, "skipped/b.py", "x = 1");
+
+    const result = await analyzeDirectory({
+      directory: dir,
+      language: "python",
+      excludeDirs: ["skipped"],
+    });
+
+    expect(result.filesFound).toBe(1);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// 6.8 maxFileSize
+// ══════════════════════════════════════════════════════════════════════
+
+describe("analyzeDirectory — maxFileSize", () => {
+  it("dovrebbe saltare file piu grandi del limite", async () => {
+    const dir = makeTempDir();
+    writeFile(dir, "small.py", "x = 1"); // ~6 byte
+    writeFile(dir, "large.py", "# " + "x".repeat(200)); // ~204 byte
+
+    const result = await analyzeDirectory({
+      directory: dir,
+      language: "python",
+      maxFileSize: 100,
+    });
+
+    expect(result.filesFound).toBe(2);
+    expect(result.filesParsed).toBe(1); // solo small.py
+    expect(result.errors.some((e) => e.includes("file too large"))).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// 6.9 maxDepth
+// ══════════════════════════════════════════════════════════════════════
+
+describe("analyzeDirectory — maxDepth", () => {
+  it("dovrebbe limitare la profondita di ricorsione", async () => {
+    const dir = makeTempDir();
+    writeFile(dir, "a.py", "x = 1");                     // livello 0
+    writeFile(dir, "sub/b.py", "y = 2");                  // livello 1
+    writeFile(dir, "sub/deep/c.py", "z = 3");             // livello 2
+    writeFile(dir, "sub/deep/deeper/d.py", "w = 4");      // livello 3
+
+    const result = await analyzeDirectory({
+      directory: dir,
+      language: "python",
+      maxDepth: 1,
+    });
+
+    // a.py (livello 0) e b.py (livello 1) trovati
+    // c.py (livello 2) e d.py (livello 3) NON trovati
+    expect(result.filesFound).toBe(2);
   });
 });
