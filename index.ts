@@ -10,7 +10,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { LANGUAGES } from "./src/languages.ts";
 import { analyzeDirectory } from "./src/analyzer.ts";
-import { getParser, parse, query, stripCommentSyntax, getPrecedingComment, initParser } from "./src/parser.ts";
+import { getParser, parse, query } from "./src/parser.ts";
+import { enrichMatchesWithDoc } from "./src/enrich.ts";
 
 export default function treeSitterExtension(pi: ExtensionAPI) {
   // ── Tool: tree_sitter_languages ──────────────────────────────────
@@ -144,36 +145,14 @@ export default function treeSitterExtension(pi: ExtensionAPI) {
           };
         }
 
-        // Enrich with doc comments if using a doc-capturing group
-        const enrichedMatches = matches.map((match) => {
-          if (group?.capturesDoc) {
-            try {
-              const { rootNode } = parse(parserCtx.parser, source);
-              const mainCapture = Object.values(match).find(
-                (v) => typeof v === "object" && "startRow" in v,
-              ) as any;
-              if (mainCapture) {
-                const node = findNodeAtPosition(
-                  rootNode,
-                  mainCapture.startRow,
-                  mainCapture.startCol,
-                );
-                if (node) {
-                  const comment = getPrecedingComment(rootNode, node);
-                  if (comment) {
-                    match._doc = {
-                      raw: comment,
-                      cleaned: stripCommentSyntax(comment, lang),
-                    };
-                  }
-                }
-              }
-            } catch {
-              // getPrecedingComment may fail; skip enrichment
-            }
-          }
-          return match;
-        });
+        // Enrich with doc comments — parse() chiamato UNA SOLA volta
+        let enrichedMatches: Record<string, any>[];
+        if (group?.capturesDoc) {
+          const { rootNode } = parse(parserCtx.parser, source);
+          enrichedMatches = enrichMatchesWithDoc(matches, rootNode, lang);
+        } else {
+          enrichedMatches = matches;
+        }
 
         return {
           content: [
@@ -451,22 +430,4 @@ export default function treeSitterExtension(pi: ExtensionAPI) {
   });
 }
 
-// ── Helper: find a syntax node at a given position ───────────────────
 
-function findNodeAtPosition(
-  node: any,
-  row: number,
-  col: number,
-): any {
-  if (
-    node.startPosition.row === row &&
-    node.startPosition.column === col
-  ) {
-    return node;
-  }
-  for (const child of node.namedChildren || []) {
-    const found = findNodeAtPosition(child, row, col);
-    if (found) return found;
-  }
-  return null;
-}

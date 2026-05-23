@@ -176,6 +176,27 @@ function collectComments(
 }
 
 /**
+ * Find a syntax node at a given position (row, col) in the tree.
+ */
+export function findNodeAtPosition(
+  node: any,
+  row: number,
+  col: number,
+): any {
+  if (
+    node.startPosition.row === row &&
+    node.startPosition.column === col
+  ) {
+    return node;
+  }
+  for (const child of node.namedChildren || []) {
+    const found = findNodeAtPosition(child, row, col);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
  * Strip comment syntax to get raw doc text.
  */
 export function stripCommentSyntax(
