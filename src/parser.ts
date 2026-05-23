@@ -5,7 +5,7 @@
  * Language objects loaded from WASM files.
  */
 
-import { Parser, Language, Query } from "web-tree-sitter";
+import { Parser, Language, Query, type Node, type Tree } from "web-tree-sitter";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,15 +14,27 @@ import type { LanguageConfig } from "./languages.ts";
 const __dirname = new URL(".", import.meta.url).pathname;
 const rootDir = resolve(__dirname, "..");
 
-interface CachedParser {
+export interface CachedParser {
   parser: Parser;
   language: Language;
 }
 
-interface ParseResult {
-  tree: any; // Parser.Tree
-  rootNode: any; // Parser.SyntaxNode
+export interface ParseResult {
+  tree: Tree;
+  rootNode: Node;
 }
+
+/** Info object for a single query capture */
+export interface CaptureInfo {
+  text: string;
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+
+/** Result of a query as a flat map of capture names to info */
+export type MatchRecord = Record<string, CaptureInfo | CaptureInfo[]>;
 
 // ─── Parser cache ────────────────────────────────────────────────────
 
@@ -64,15 +76,19 @@ export async function getParser(
 
 /**
  * Parse source code and return tree.
+ * @throws if parsing fails and returns null
  */
 export function parse(
   parser: Parser,
   source: string,
 ): ParseResult {
   const tree = parser.parse(source);
+  if (!tree) {
+    throw new Error("Parser.parse returned null (parsing cancelled?)");
+  }
   return {
     tree,
-    rootNode: tree.rootNode,
+    rootNode: tree.rootNode as Node,
   };
 }
 
@@ -83,22 +99,25 @@ export function query(
   parserCtx: CachedParser,
   source: string,
   queryStr: string,
-): Array<Record<string, { text: string; startRow: number; startCol: number; endRow: number; endCol: number }>> {
+): MatchRecord[] {
   const { rootNode } = parse(parserCtx.parser, source);
   const q = new Query(parserCtx.language, queryStr);
   const matches = q.matches(rootNode);
 
   return matches.map((match) => {
-    const captures: Record<string, any> = {};
+    const captures: Record<string, CaptureInfo | CaptureInfo[]> = {};
     for (const cap of match.captures) {
-      const name = cap.name;
-      if (captures[name]) {
-        if (!Array.isArray(captures[name])) {
-          captures[name] = [captures[name]];
+      const { name, node } = cap;
+      const info = nodeInfo(node);
+      const existing = captures[name];
+      if (existing) {
+        if (Array.isArray(existing)) {
+          existing.push(info);
+        } else {
+          captures[name] = [existing, info];
         }
-        captures[name].push(nodeInfo(cap.node));
       } else {
-        captures[name] = nodeInfo(cap.node);
+        captures[name] = info;
       }
     }
     return captures;
@@ -108,7 +127,7 @@ export function query(
 /**
  * Extract node metadata for JSON output.
  */
-function nodeInfo(node: any) {
+function nodeInfo(node: Node): CaptureInfo {
   return {
     text: node.text,
     startRow: node.startPosition.row,
@@ -123,8 +142,8 @@ function nodeInfo(node: any) {
  * Used to associate docstrings with definitions.
  */
 export function getPrecedingComment(
-  rootNode: any,
-  targetNode: any,
+  rootNode: Node,
+  targetNode: Node,
 ): string | undefined {
   const targetStart = targetNode.startPosition;
   const comments: Array<{ row: number; text: string }> = [];
@@ -157,9 +176,9 @@ export function getPrecedingComment(
 }
 
 function collectComments(
-  node: any,
+  node: Node,
   result: Array<{ row: number; text: string }>,
-) {
+): void {
   try {
     if (node.type === "comment") {
       result.push({
@@ -179,17 +198,17 @@ function collectComments(
  * Find a syntax node at a given position (row, col) in the tree.
  */
 export function findNodeAtPosition(
-  node: any,
+  node: Node,
   row: number,
   col: number,
-): any {
+): Node | null {
   if (
     node.startPosition.row === row &&
     node.startPosition.column === col
   ) {
     return node;
   }
-  for (const child of node.namedChildren || []) {
+  for (const child of node.namedChildren) {
     const found = findNodeAtPosition(child, row, col);
     if (found) return found;
   }

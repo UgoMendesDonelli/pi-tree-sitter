@@ -6,19 +6,20 @@
  * rootNode, making it impossible to call parse() inside the enrichment loop.
  */
 
-import { findNodeAtPosition, getPrecedingComment, stripCommentSyntax } from "./parser.ts";
+import { type Node } from "web-tree-sitter";
+import { findNodeAtPosition, getPrecedingComment, stripCommentSyntax, type CaptureInfo, type MatchRecord } from "./parser.ts";
 import type { LanguageConfig } from "./languages.ts";
 
 /**
- * A query match record with optional _doc enrichment.
+ * A match enriched with an optional _doc field.
+ * Uses a generic record type to allow both CaptureInfo values and _doc.
  */
-export interface EnrichedMatch {
-  [key: string]: any;
+export type EnrichedMatch = MatchRecord & {
   _doc?: {
     raw: string;
     cleaned: string;
   };
-}
+};
 
 /**
  * Enrich query matches with documentation comments.
@@ -32,14 +33,17 @@ export interface EnrichedMatch {
  * @returns matches enriched with _doc field where applicable
  */
 export function enrichMatchesWithDoc(
-  matches: Record<string, any>[],
-  rootNode: any,
+  matches: MatchRecord[],
+  rootNode: Node,
   lang: LanguageConfig,
-): Record<string, any>[] {
+): EnrichedMatch[] {
   return matches.map((match) => {
+    // Find the first single (non-array) capture value to determine position
     const mainCapture = Object.values(match).find(
-      (v) => typeof v === "object" && v !== null && "startRow" in v,
-    ) as any;
+      (v): v is CaptureInfo =>
+        v !== null && typeof v === "object" && "startRow" in v && !Array.isArray(v),
+    );
+
     if (mainCapture) {
       try {
         const node = findNodeAtPosition(
@@ -50,16 +54,18 @@ export function enrichMatchesWithDoc(
         if (node) {
           const comment = getPrecedingComment(rootNode, node);
           if (comment) {
-            match._doc = {
+            const enriched = match as EnrichedMatch;
+            enriched._doc = {
               raw: comment,
               cleaned: stripCommentSyntax(comment, lang),
             };
+            return enriched;
           }
         }
       } catch {
         // getPrecedingComment may fail on some trees; skip enrichment silently
       }
     }
-    return match;
+    return match as EnrichedMatch;
   });
 }

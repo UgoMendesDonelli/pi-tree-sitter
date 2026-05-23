@@ -8,7 +8,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Query } from "web-tree-sitter";
+import { Query, type Node } from "web-tree-sitter";
 import {
   getLanguageForFile,
   type LanguageConfig,
@@ -60,36 +60,22 @@ export interface ImportInfo {
 }
 
 export interface AnalysisResult {
-  /** Path analyzed */
   path: string;
-  /** Total files found */
   filesFound: number;
-  /** Files successfully parsed */
   filesParsed: number;
-  /** Errors encountered */
   errors: string[];
-  /** Language breakdown */
   languages: Record<string, number>;
-  /** Top-level functions (not inside a class) */
   functions: FunctionInfo[];
-  /** Classes/modules with their methods */
   classes: ClassInfo[];
-  /** Import/require/include statements */
   imports: ImportInfo[];
-  /** Raw capture results by language */
-  captures?: Record<string, any>;
+  captures?: Record<string, unknown>;
 }
 
 export interface AnalyzeOptions {
-  /** Root directory to analyze */
   directory: string;
-  /** Optional language override (auto-detect if omitted) */
   language?: string;
-  /** Capture groups to run (default: classes, functions, imports, comments) */
   groups?: string[];
-  /** Maximum files to analyze (safety limit) */
   maxFiles?: number;
-  /** Recursive? */
   recursive?: boolean;
 }
 
@@ -104,7 +90,7 @@ function findFiles(
   const results: string[] = [];
   const extSet = new Set(extensions);
 
-  function walk(current: string) {
+  function walk(current: string): void {
     if (results.length >= maxFiles) return;
     try {
       const entries = fs.readdirSync(current, { withFileTypes: true });
@@ -132,7 +118,7 @@ function findFiles(
           }
         }
       }
-    } catch (err: any) {
+    } catch {
       // Skip directories we can't read
     }
   }
@@ -166,9 +152,8 @@ export async function analyzeDirectory(
   let langOverride: LanguageConfig | undefined;
 
   if (opts.language) {
-    const lang = Object.values(
-      await import("./languages.ts").then((m) => m.LANGUAGES),
-    ).find((l) => l.id === opts.language);
+    const { LANGUAGES } = await import("./languages.ts");
+    const lang = Object.values(LANGUAGES).find((l) => l.id === opts.language);
     if (!lang) {
       result.errors.push(`Unknown language: ${opts.language}`);
       return result;
@@ -223,7 +208,7 @@ export async function analyzeDirectory(
           }
 
           // Parse step
-          let rootNode;
+          let rootNode: Node;
           try {
             rootNode = parse(parserCtx.parser, source).rootNode;
           } catch (parseErr: any) {
@@ -269,21 +254,21 @@ function processCaptureGroup(
   parserCtx: CachedParser,
   lang: LanguageConfig,
   file: string,
-  source: string,
-  rootNode: any,
+  _source: string,
+  rootNode: Node,
   group: CaptureGroup,
-) {
+): void {
   try {
     const q = new Query(parserCtx.language, group.query);
     const matches = q.matches(rootNode);
 
     for (const match of matches) {
-      const caps: Record<string, any> = {};
+      const caps: Record<string, Node> = {};
       for (const cap of match.captures) {
         caps[cap.name] = cap.node;
       }
 
-      const loc = (node: any): Location => ({
+      const loc = (node: Node): Location => ({
         file,
         startRow: node.startPosition.row,
         startCol: node.startPosition.column,
@@ -294,16 +279,14 @@ function processCaptureGroup(
       switch (group.name) {
         case "classes_and_modules":
         case "classes": {
-          const node = caps.class_def || caps.module_def;
+          const node = caps["class_def"] || caps["module_def"];
           if (!node) continue;
-          const nameNode =
-            caps.class_name || caps.module_name;
+          const nameNode = caps["class_name"] || caps["module_name"];
           if (!nameNode) continue;
 
           const className = nameNode.text;
-          const superclass = caps.superclass?.text;
+          const superclass = caps["superclass"]?.text;
 
-          // Check for doc comment
           let doc: DocComment | undefined;
           if (group.capturesDoc) {
             try {
@@ -331,16 +314,16 @@ function processCaptureGroup(
 
         case "methods":
         case "functions": {
-          const node = caps.method_def || caps.func_def || caps.singleton_method_def;
+          const node = caps["method_def"] || caps["func_def"] || caps["singleton_method_def"];
           if (!node) continue;
           const nameNode =
-            caps.method_name ||
-            caps.func_name ||
-            caps.singleton_method_name;
+            caps["method_name"] ||
+            caps["func_name"] ||
+            caps["singleton_method_name"];
           if (!nameNode) continue;
 
           const funcName = nameNode.text;
-          const params = caps.params?.text;
+          const params = caps["params"]?.text;
 
           let doc: DocComment | undefined;
           if (group.capturesDoc) {
@@ -369,7 +352,7 @@ function processCaptureGroup(
           let assignedToClass = false;
           if (result.classes.length > 0) {
             for (let i = result.classes.length - 1; i >= 0; i--) {
-              const cls = result.classes[i];
+              const cls = result.classes[i]!;
               // Method belongs to class if it's inside the class's row range
               if (
                 cls.location.file === file &&
@@ -393,17 +376,15 @@ function processCaptureGroup(
         case "requires":
         case "imports":
         case "includes": {
-          const pathNode = caps.req_path;
+          const pathNode = caps["req_path"];
           if (pathNode) {
             result.imports.push({
               type: "require",
               path: pathNode.text,
-              location: loc(
-                caps.require_call || caps.require_call || pathNode,
-              ),
+              location: loc(pathNode),
             });
           }
-          const importNode = caps.import || caps.import_from;
+          const importNode = caps["import"] || caps["import_from"];
           if (importNode) {
             result.imports.push({
               type: "import",
@@ -411,7 +392,7 @@ function processCaptureGroup(
               location: loc(importNode),
             });
           }
-          const includeNode = caps.include;
+          const includeNode = caps["include"];
           if (includeNode) {
             result.imports.push({
               type: "include",
