@@ -97,7 +97,6 @@ More languages can be added by installing their respective npm grammar packages.
 - **AST diff**: compare two versions of the same file
 - **Scope analysis**: defined/used variables, shadowing
 - **Code metrics**: cyclomatic complexity, lines of code per function
-- **Language Server Protocol**: LSP integration for deeper analysis
 
 ## Setup
 

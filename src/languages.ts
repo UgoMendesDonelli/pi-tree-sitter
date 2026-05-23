@@ -95,7 +95,7 @@ const rubyCaptureGroups: CaptureGroup[] = [
       (call
         method: (identifier) @req_method
         arguments: (argument_list (string) @req_path)
-        (#match? @req_method "^(require|load)$")
+        (#match? @req_method "^(require|require_relative|load)$")
       ) @require_call
     `,
   },
@@ -110,7 +110,7 @@ const pythonCaptureGroups: CaptureGroup[] = [
     query: `
       (class_definition
         name: (identifier) @class_name
-        superclasses: (argument_list) @superclasses
+        superclasses: (argument_list) @superclasses?
       ) @class_def
     `,
     capturesDoc: true,
@@ -297,9 +297,7 @@ const htmlCaptureGroups: CaptureGroup[] = [
     description: "HTML elements with their tag names",
     query: `
       (element
-        start_tag: (start_tag
-          name: (tag_name) @tag_name
-        ) @start_tag
+        (start_tag (tag_name) @tag_name)
       ) @element
     `,
   },

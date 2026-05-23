@@ -294,7 +294,7 @@ function processCaptureGroup(
       switch (group.name) {
         case "classes_and_modules":
         case "classes": {
-          const node = caps.class_def || caps.class_def;
+          const node = caps.class_def || caps.module_def;
           if (!node) continue;
           const nameNode =
             caps.class_name || caps.module_name;

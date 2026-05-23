@@ -131,9 +131,26 @@ export function getPrecedingComment(
 
   collectComments(rootNode, comments);
 
-  const adjacentComments = comments.filter((c) => {
-    return c.row <= targetStart.row && c.row >= targetStart.row - 1;
-  });
+  // Walk backwards from the target row, collecting all consecutive comment
+  // lines. Stop at the first non-comment row (skip empty/whitespace lines).
+  const adjacentComments: Array<{ row: number; text: string }> = [];
+  const sorted = comments
+    .filter((c) => c.row <= targetStart.row)
+    .sort((a, b) => b.row - a.row); // descending by row
+
+  if (sorted.length === 0) return undefined;
+
+  // Collect consecutive comments walking upwards from target
+  let expectedRow = targetStart.row - 1;
+  for (const c of sorted) {
+    if (c.row === expectedRow || c.row === targetStart.row) {
+      adjacentComments.unshift(c);
+      expectedRow = c.row - 1;
+    } else if (c.row < expectedRow - 1) {
+      // Gap found — stop
+      break;
+    }
+  }
 
   if (adjacentComments.length === 0) return undefined;
   return adjacentComments.map((c) => c.text).join("\n");
