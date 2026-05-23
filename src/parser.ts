@@ -88,19 +88,18 @@ export function parse(
   }
   return {
     tree,
-    rootNode: tree.rootNode as Node,
+    rootNode: tree.rootNode,
   };
 }
 
 /**
- * Parse source and return a structured capture using a query.
+ * Execute a query against a pre-parsed rootNode (no re-parse).
  */
-export function query(
+export function queryNode(
   parserCtx: CachedParser,
-  source: string,
+  rootNode: Node,
   queryStr: string,
 ): MatchRecord[] {
-  const { rootNode } = parse(parserCtx.parser, source);
   const q = new Query(parserCtx.language, queryStr);
   const matches = q.matches(rootNode);
 
@@ -122,6 +121,19 @@ export function query(
     }
     return captures;
   });
+}
+
+/**
+ * Parse source and return a structured capture using a query.
+ * Thin wrapper: parse once, then queryNode.
+ */
+export function query(
+  parserCtx: CachedParser,
+  source: string,
+  queryStr: string,
+): MatchRecord[] {
+  const { rootNode } = parse(parserCtx.parser, source);
+  return queryNode(parserCtx, rootNode, queryStr);
 }
 
 /**

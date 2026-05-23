@@ -69,7 +69,8 @@ export interface AnalysisResult {
   functions: FunctionInfo[];
   classes: ClassInfo[];
   imports: ImportInfo[];
-  captures?: Record<string, unknown>;
+  /** Raw captures for groups without a dedicated handler */
+  captures?: Record<string, Record<string, unknown>[]>;
 }
 
 export interface AnalyzeOptions {
@@ -155,7 +156,7 @@ export async function analyzeDirectory(
     functions: [],
     classes: [],
     imports: [],
-    captures: {},
+    captures: {} as Record<string, Record<string, unknown>[]>,
   };
 
   // Determine which extensions to look for
@@ -243,7 +244,6 @@ export async function analyzeDirectory(
                 parserCtx,
                 lang,
                 file,
-                source,
                 rootNode,
                 group,
               );
@@ -272,7 +272,6 @@ function processCaptureGroup(
   parserCtx: CachedParser,
   lang: LanguageConfig,
   file: string,
-  _source: string,
   rootNode: Node,
   group: CaptureGroup,
 ): void {

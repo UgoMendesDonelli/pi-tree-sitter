@@ -6,11 +6,7 @@
  * The agent can query these by name without knowing the language-specific node types.
  */
 
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(__dirname, "..");
 
 export interface CaptureGroup {
   name: string;
@@ -365,6 +361,117 @@ const cCaptureGroups: CaptureGroup[] = [
   },
 ];
 
+// ─── Go ───────────────────────────────────────────────────────────────
+
+const goCaptureGroups: CaptureGroup[] = [
+  {
+    name: "functions",
+    description: "Function and method declarations",
+    query: `
+      (function_declaration
+        name: (identifier) @func_name
+        parameters: (parameter_list) @params
+      ) @func_def
+      (method_declaration
+        name: (field_identifier) @method_name
+        parameters: (parameter_list) @params
+      ) @method_def
+    `,
+    capturesDoc: true,
+  },
+  {
+    name: "structs",
+    description: "Struct type declarations",
+    query: `
+      (type_spec
+        name: (type_identifier) @struct_name
+        type: (struct_type)
+      ) @struct_def
+    `,
+  },
+  {
+    name: "interfaces",
+    description: "Interface type declarations",
+    query: `
+      (type_spec
+        name: (type_identifier) @interface_name
+        type: (interface_type)
+      ) @interface_def
+    `,
+  },
+  {
+    name: "imports",
+    description: "Import declarations",
+    query: `(import_declaration) @import`,
+  },
+  {
+    name: "comments",
+    description: "All comments",
+    query: `(comment) @comment`,
+  },
+];
+
+// ─── Rust ──────────────────────────────────────────────────────────────
+
+const rustCaptureGroups: CaptureGroup[] = [
+  {
+    name: "functions",
+    description: "Function definitions",
+    query: `
+      (function_item
+        name: (identifier) @func_name
+        parameters: (parameters) @params
+      ) @func_def
+    `,
+    capturesDoc: true,
+  },
+  {
+    name: "structs",
+    description: "Struct definitions",
+    query: `
+      (struct_item
+        name: (type_identifier) @struct_name
+      ) @struct_def
+    `,
+    capturesDoc: true,
+  },
+  {
+    name: "enums",
+    description: "Enum definitions",
+    query: `
+      (enum_item
+        name: (type_identifier) @enum_name
+      ) @enum_def
+    `,
+    capturesDoc: true,
+  },
+  {
+    name: "traits",
+    description: "Trait definitions",
+    query: `
+      (trait_item
+        name: (type_identifier) @trait_name
+      ) @trait_def
+    `,
+    capturesDoc: true,
+  },
+  {
+    name: "imports",
+    description: "Use declarations",
+    query: `(use_declaration) @use`,
+  },
+  {
+    name: "macros",
+    description: "Macro invocations",
+    query: `(macro_invocation) @macro`,
+  },
+  {
+    name: "comments",
+    description: "All comments",
+    query: `(comment) @comment`,
+  },
+];
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 export const LANGUAGES: Record<string, LanguageConfig> = {
@@ -422,6 +529,22 @@ export const LANGUAGES: Record<string, LanguageConfig> = {
     extensions: ["c", "h", "cpp", "hpp", "cc", "hh", "cxx", "hxx"],
     wasmPath: "node_modules/tree-sitter-c/tree-sitter-c.wasm",
     captureGroups: cCaptureGroups,
+    commentDelimiters: { line: "//", blockStart: "/*", blockEnd: "*/" },
+  },
+  go: {
+    id: "go",
+    label: "Go",
+    extensions: ["go"],
+    wasmPath: "node_modules/tree-sitter-go/tree-sitter-go.wasm",
+    captureGroups: goCaptureGroups,
+    commentDelimiters: { line: "//", blockStart: "/*", blockEnd: "*/" },
+  },
+  rust: {
+    id: "rust",
+    label: "Rust",
+    extensions: ["rs"],
+    wasmPath: "node_modules/tree-sitter-rust/tree-sitter-rust.wasm",
+    captureGroups: rustCaptureGroups,
     commentDelimiters: { line: "//", blockStart: "/*", blockEnd: "*/" },
   },
 };

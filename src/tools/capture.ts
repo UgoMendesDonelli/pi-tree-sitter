@@ -121,11 +121,12 @@ export const captureTool = {
         },
       };
     } else {
-      // Single file mode: delegate to queryFile
+      // Single file mode: delegate to queryFile (with doc enrichment)
       const result = await queryFile({
         file: targetPath,
         query: captureGroupName,
         language: params.language,
+        enrich: true,
       });
 
       if ("error" in result) {

@@ -11,10 +11,12 @@ import { languagesTool } from "./src/tools/languages.ts";
 import { queryTool } from "./src/tools/query.ts";
 import { analyzeTool } from "./src/tools/analyze.ts";
 import { captureTool } from "./src/tools/capture.ts";
+import { graphTool } from "./src/tools/graph.ts";
 
 export default function treeSitterExtension(pi: ExtensionAPI) {
   pi.registerTool(languagesTool);
   pi.registerTool(queryTool);
   pi.registerTool(analyzeTool);
   pi.registerTool(captureTool);
+  pi.registerTool(graphTool);
 }

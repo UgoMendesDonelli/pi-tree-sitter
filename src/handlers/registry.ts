@@ -10,6 +10,7 @@ import type { CaptureGroupHandler, HandlerContext } from "./types.ts";
 import { classHandler } from "./classHandler.ts";
 import { methodHandler } from "./methodHandler.ts";
 import { importHandler } from "./importHandler.ts";
+import { rawHandler } from "./rawHandler.ts";
 
 // ─── Registry ────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ function register(handler: CaptureGroupHandler): void {
 register(classHandler);
 register(methodHandler);
 register(importHandler);
+register(rawHandler);
 
 // ─── Public API ──────────────────────────────────────────────────────
 

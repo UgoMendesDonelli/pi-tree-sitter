@@ -321,7 +321,11 @@ describe("capturesDoc flag", () => {
   it("classi e funzioni dovrebbero avere capturesDoc: true", () => {
     for (const [id, lang] of Object.entries(LANGUAGES)) {
       for (const group of lang.captureGroups) {
-        if (["classes", "classes_and_modules", "methods", "functions", "interfaces", "types"].includes(group.name)) {
+        if (["classes", "classes_and_modules", "methods", "functions", "types"].includes(group.name)
+            || (group.name === "structs" && id === "rust")
+            || (group.name === "enums" && id === "rust")
+            || (group.name === "traits" && id === "rust")
+            || (group.name === "interfaces" && id === "typescript")) {
           expect(group.capturesDoc, `${id}.${group.name} dovrebbe avere capturesDoc: true`).toBe(true);
         }
       }
@@ -331,7 +335,7 @@ describe("capturesDoc flag", () => {
   it("commenti, chiamate e import non dovrebbero avere capturesDoc", () => {
     for (const [id, lang] of Object.entries(LANGUAGES)) {
       for (const group of lang.captureGroups) {
-        if (["comments", "calls", "imports", "requires", "variables", "exports", "elements", "rules", "includes", "decorators", "constants"].includes(group.name)) {
+        if (["comments", "calls", "imports", "requires", "variables", "exports", "elements", "rules", "includes", "decorators", "constants", "macros"].includes(group.name)) {
           expect(group.capturesDoc, `${id}.${group.name} NON dovrebbe avere capturesDoc`).toBeFalsy();
         }
       }

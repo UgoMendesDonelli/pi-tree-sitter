@@ -9,9 +9,9 @@
  * the logic inline.
  */
 
-import { readFileSync } from "node:fs";
-import { getParser, parse, query, type MatchRecord } from "./parser.ts";
-import { LANGUAGES, getLanguageForFile, type LanguageConfig, type CaptureGroup } from "./languages.ts";
+import { readFileSync, statSync } from "node:fs";
+import { getParser, parse, queryNode, type MatchRecord } from "./parser.ts";
+import { LANGUAGES, getLanguageForFile, type LanguageConfig } from "./languages.ts";
 import { enrichMatchesWithDoc, type EnrichedMatch } from "./enrich.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ export interface QueryFileOptions {
   language?: string;
   /** Enrich matches with doc comments? (default: false) */
   enrich?: boolean;
+  /** Maximum file size in bytes (default: no limit). Set to 0 for unlimited. */
+  maxFileSize?: number;
 }
 
 export interface QueryFileResult {
@@ -50,12 +52,30 @@ export interface QueryFileError {
  * query execution (via capture group name or raw S-expression),
  * and optional doc comment enrichment.
  *
+ * **Parse is called exactly once** — the same rootNode is reused for
+ * both query execution and doc enrichment.
+ *
  * @returns result on success, error object on failure (never throws)
  */
 export async function queryFile(
   opts: QueryFileOptions,
 ): Promise<QueryFileResult | QueryFileError> {
   const { file, query: queryOrGroup } = opts;
+
+  // Check file size (optional limit)
+  if (opts.maxFileSize && opts.maxFileSize > 0) {
+    try {
+      const stat = statSync(file);
+      if (stat.size > opts.maxFileSize) {
+        return {
+          error: "file_too_large",
+          message: `File too large (${stat.size} bytes, max ${opts.maxFileSize}). Use tree_sitter_analyze instead.`,
+        };
+      }
+    } catch (err: unknown) {
+      return { error: "read_error", message: (err as Error).message };
+    }
+  }
 
   // Load source
   let source: string;
@@ -98,10 +118,21 @@ export async function queryFile(
     queryStr = group.query;
   }
 
-  // Run query
+  // Parse ONCE — rootNode reused for both query and enrichment
+  let rootNode;
+  try {
+    rootNode = parse(parserCtx.parser, source).rootNode;
+  } catch (err: unknown) {
+    return {
+      error: "parse_error",
+      message: `Failed to parse ${file}: ${(err as Error).message}`,
+    };
+  }
+
+  // Run query against the already-parsed rootNode (no re-parse)
   let matches: MatchRecord[];
   try {
-    matches = query(parserCtx, source, queryStr);
+    matches = queryNode(parserCtx, rootNode, queryStr);
   } catch (err: unknown) {
     return {
       error: "query_exec_error",
@@ -109,9 +140,8 @@ export async function queryFile(
     };
   }
 
-  // Optional enrichment with doc comments
+  // Optional enrichment with doc comments — same rootNode, no re-parse
   if (group?.capturesDoc && opts.enrich) {
-    const { rootNode } = parse(parserCtx.parser, source);
     const enrichedMatches = enrichMatchesWithDoc(matches, rootNode, lang);
     return {
       file,
