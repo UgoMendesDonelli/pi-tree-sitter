@@ -25,7 +25,7 @@ Tree-sitter solves this by producing accurate ASTs even on unparseable code.
 
 ## Features
 
-### Registered Tools (6)
+### Registered Tools (5)
 
 | Tool | Description |
 |------|-------------|
@@ -116,7 +116,7 @@ because the structured JSON replaces dozens of individual file reads.
 
 ```
 ~/.pi/agent/extensions/pi-tree-sitter/
-├── index.ts                         # Entry point: registers 6 tools
+├── index.ts                         # Entry point: registers 5 tools
 ├── src/
 │   ├── parser.ts                    # Parser manager (WASM caching, single-parse)
 │   ├── languages.ts                 # 9 language configs + capture groups

@@ -1,7 +1,7 @@
 /**
  * pi-tree-sitter — Pi Extension
  *
- * Registers 4 structural code analysis tools powered by Tree-sitter.
+ * Registers 5 structural code analysis tools powered by Tree-sitter.
  * This file is a pure orchestrator: each tool lives in its own module
  * under src/tools/.
  */

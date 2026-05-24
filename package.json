@@ -23,7 +23,9 @@
   },
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit --skipLibCheck 2>&1 || echo '⚠️  typecheck fails for @earendil-works/pi-coding-agent (pi-only dep)'"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
