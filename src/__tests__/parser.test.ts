@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { initParser, getParser, parse, query, stripCommentSyntax, getPrecedingComment } from "../parser";
+import { initParser, getParser, parse, query, stripCommentSyntax, getPrecedingComment, type CaptureInfo } from "../parser";
 import { LANGUAGES, type LanguageConfig } from "../languages";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ beforeAll(async () => {
 }, 30_000);
 
 async function getRubyParser() {
-  return getParser(LANGUAGES.ruby);
+  return getParser(LANGUAGES["ruby"]!);
 }
 
 // ─── 1.1 initParser ───────────────────────────────────────────────────
@@ -59,16 +59,16 @@ describe("getParser", () => {
   it("dovrebbe caricare tutti e 7 i linguaggi", async () => {
     const langIds = Object.keys(LANGUAGES);
     for (const id of langIds) {
-      const ctx = await getParser(LANGUAGES[id]);
+      const ctx = await getParser(LANGUAGES[id]!);
       expect(ctx.parser).toBeDefined();
       expect(ctx.language).toBeDefined();
     }
   });
 
   it("dovrebbe usare la cache tra caricamenti di linguaggi diversi", async () => {
-    const rubyA = await getParser(LANGUAGES.ruby);
-    await getParser(LANGUAGES.python);
-    const rubyB = await getParser(LANGUAGES.ruby);
+    const rubyA = await getParser(LANGUAGES["ruby"]!);
+    await getParser(LANGUAGES["python"]!);
+    const rubyB = await getParser(LANGUAGES["ruby"]!);
     expect(rubyB).toBe(rubyA);
   });
 });
@@ -110,8 +110,8 @@ describe("query", () => {
 
     const matches = query(ctx, source, q);
     expect(matches.length).toBe(1);
-    expect(matches[0].class_name.text).toBe("Foo");
-    expect(matches[0].superclass.text).toBe("Bar");
+    expect((matches[0]!.class_name as CaptureInfo).text).toBe("Foo");
+    expect((matches[0]!.superclass as CaptureInfo).text).toBe("Bar");
   });
 
   it("dovrebbe restituire array vuoto per query senza match", async () => {
@@ -127,8 +127,8 @@ describe("query", () => {
 
     const matches = query(ctx, source, q);
     expect(matches.length).toBe(2);
-    expect(matches[0].method_name.text).toBe("a");
-    expect(matches[1].method_name.text).toBe("b");
+    expect((matches[0]!.method_name as CaptureInfo).text).toBe("a");
+    expect((matches[1]!.method_name as CaptureInfo).text).toBe("b");
   });
 });
 
@@ -138,13 +138,13 @@ describe("query with capture group", () => {
   it("dovrebbe usare il capture group 'methods' di Ruby", async () => {
     const ctx = await getRubyParser();
     const source = `def hello(name)\n  name.upcase\nend\n\ndef goodbye\n  "bye"\nend`;
-    const group = LANGUAGES.ruby.captureGroups.find((g) => g.name === "methods");
+    const group = LANGUAGES["ruby"]!.captureGroups.find((g) => g.name === "methods");
     expect(group).toBeDefined();
 
     const matches = query(ctx, source, group!.query);
     expect(matches.length).toBe(2);
-    expect(matches[0].method_name.text).toBe("hello");
-    expect(matches[1].method_name.text).toBe("goodbye");
+    expect((matches[0]!.method_name as CaptureInfo).text).toBe("hello");
+    expect((matches[1]!.method_name as CaptureInfo).text).toBe("goodbye");
   });
 });
 
@@ -152,47 +152,47 @@ describe("query with capture group", () => {
 
 describe("stripCommentSyntax", () => {
   it("dovrebbe rimuovere commenti Ruby (#)", () => {
-    const result = stripCommentSyntax("# This is a comment", LANGUAGES.ruby);
+    const result = stripCommentSyntax("# This is a comment", LANGUAGES["ruby"]!);
     expect(result).toBe("This is a comment");
   });
 
   it("dovrebbe rimuovere commenti Ruby senza spazio (#)", () => {
-    const result = stripCommentSyntax("#This is a comment", LANGUAGES.ruby);
+    const result = stripCommentSyntax("#This is a comment", LANGUAGES["ruby"]!);
     expect(result).toBe("This is a comment");
   });
 
   it("dovrebbe rimuovere commenti Ruby indentati", () => {
-    const result = stripCommentSyntax("  # indented comment", LANGUAGES.ruby);
+    const result = stripCommentSyntax("  # indented comment", LANGUAGES["ruby"]!);
     expect(result).toBe("indented comment");
   });
 
   it("dovrebbe gestire commento Ruby vuoto", () => {
-    const result = stripCommentSyntax("#", LANGUAGES.ruby);
+    const result = stripCommentSyntax("#", LANGUAGES["ruby"]!);
     expect(result).toBe("");
   });
 
   it("dovrebbe rimuovere commenti Python (#)", () => {
-    const result = stripCommentSyntax("# line comment", LANGUAGES.python);
+    const result = stripCommentSyntax("# line comment", LANGUAGES["python"]!);
     expect(result).toBe("line comment");
   });
 
   it("dovrebbe rimuovere docstring Python con \"\"\"", () => {
-    const result = stripCommentSyntax('"""block docstring"""', LANGUAGES.python);
+    const result = stripCommentSyntax('"""block docstring"""', LANGUAGES["python"]!);
     expect(result).toBe("block docstring");
   });
 
   it("dovrebbe rimuovere commenti JS singola linea (//)", () => {
-    const result = stripCommentSyntax("// single line", LANGUAGES.javascript);
+    const result = stripCommentSyntax("// single line", LANGUAGES["javascript"]!);
     expect(result).toBe("single line");
   });
 
   it("dovrebbe rimuovere commenti JS multi-linea (/* */)", () => {
-    const result = stripCommentSyntax("/* multi\n line */", LANGUAGES.javascript);
+    const result = stripCommentSyntax("/* multi\n line */", LANGUAGES["javascript"]!);
     expect(result).toBe("multi\n line");
   });
 
   it("dovrebbe rimuovere commenti HTML (<!-- -->)", () => {
-    const result = stripCommentSyntax("<!-- HTML comment -->", LANGUAGES.html);
+    const result = stripCommentSyntax("<!-- HTML comment -->", LANGUAGES["html"]!);
     expect(result).toBe("HTML comment");
   });
 

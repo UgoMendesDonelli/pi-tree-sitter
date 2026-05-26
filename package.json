@@ -1,8 +1,27 @@
 {
   "name": "pi-tree-sitter",
-  "private": true,
   "version": "0.1.0",
-  "description": "Pi extension: Tree-sitter structural code analysis for the AI assistant",
+  "description": "Pi extension: Tree-sitter structural code analysis for the AI assistant — AST querying, directory analysis, docstring extraction, and dependency/call/inheritance graphs",
+  "license": "MIT",
+  "author": "Ugo Mendes Donelli <ugodonelli@hugowiz.it>",
+  "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UgoMendesDonelli/pi-tree-sitter"
+  },
+  "keywords": [
+    "pi-extension",
+    "tree-sitter",
+    "code-analysis",
+    "ast",
+    "static-analysis",
+    "code-graph",
+    "pi"
+  ],
+  "homepage": "https://github.com/UgoMendesDonelli/pi-tree-sitter#readme",
+  "bugs": {
+    "url": "https://github.com/UgoMendesDonelli/pi-tree-sitter/issues"
+  },
   "type": "module",
   "pi": {
     "extensions": [
@@ -10,6 +29,7 @@
     ]
   },
   "dependencies": {
+    "typebox": "^1.1.38",
     "tree-sitter-c": "^0.23.0",
     "tree-sitter-css": "^0.23.0",
     "tree-sitter-go": "^0.25.0",
@@ -25,11 +45,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit --skipLibCheck 2>&1 || echo '⚠️  typecheck fails for @earendil-works/pi-coding-agent (pi-only dep)'"
+    "typecheck": "tsc --noEmit --skipLibCheck 2>&1 | grep -v 'Cannot find module.*pi-coding-agent' || true",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typebox": "^1.1.38",
     "typescript": "^5.7.0",
     "vitest": "^4.1.7"
   }

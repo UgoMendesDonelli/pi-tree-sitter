@@ -45,7 +45,7 @@ function validate(schema: TSchema, data: unknown): { ok: boolean; errors?: strin
   if (result) return { ok: true };
   // Collect first error
   const errors = [...Value.Errors(schema, data)];
-  return { ok: false, errors: errors.map((e) => `${e.path}: ${e.message}`).join("; ") };
+  return { ok: false, errors: errors.map((e: any) => `${e.instancePath || e.schemaPath}: ${e.message}`).join("; ") };
 }
 
 // ══════════════════════════════════════════════════════════════════════

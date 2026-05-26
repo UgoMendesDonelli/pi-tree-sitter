@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { initParser, getParser, query, stripCommentSyntax, getPrecedingComment, parse } from "../parser";
+import { initParser, getParser, query, stripCommentSyntax, getPrecedingComment, parse, type CaptureInfo } from "../parser";
 import {
   LANGUAGES,
   getLanguageForFile,
@@ -45,7 +45,7 @@ function readFixture(...segments: string[]): string {
  * Run a capture group query against a fixture file and return the matches.
  */
 async function runCaptureGroup(langId: string, fixtureFile: string, groupName: string) {
-  const lang = LANGUAGES[langId];
+  const lang = LANGUAGES[langId]!;
   const group = lang.captureGroups.find((g) => g.name === groupName);
   expect(group, `Capture group "${groupName}" not found for ${langId}`).toBeDefined();
 
@@ -65,12 +65,12 @@ describe("Ruby capture groups", () => {
     expect(matches.length).toBe(2); // Calculator + MathUtils
 
     // Trova Calculator
-    const calcMatch = matches.find((m) => m.class_name?.text === "Calculator");
+    const calcMatch = matches.find((m) => (m.class_name as CaptureInfo | undefined)?.text === "Calculator");
     expect(calcMatch).toBeDefined();
     expect(calcMatch!.superclass).toBeUndefined();
 
     // MathUtils
-    const mathMatch = matches.find((m) => m.module_name?.text === "MathUtils");
+    const mathMatch = matches.find((m) => (m.module_name as CaptureInfo | undefined)?.text === "MathUtils");
     expect(mathMatch).toBeDefined();
   });
 
@@ -79,7 +79,7 @@ describe("Ruby capture groups", () => {
 
     expect(matches.length).toBe(4); // add, subtract, create, circle_area
 
-    const methodNames = matches.map((m) => m.method_name?.text || m.singleton_method_name?.text).sort();
+    const methodNames = matches.map((m) => (m.method_name as CaptureInfo | undefined)?.text || (m.singleton_method_name as CaptureInfo | undefined)?.text).sort();
     expect(methodNames).toContain("add");
     expect(methodNames).toContain("subtract");
     expect(methodNames).toContain("create");
@@ -95,8 +95,8 @@ describe("Ruby capture groups", () => {
     const { matches } = await runCaptureGroup("ruby", "sample.rb", "requires");
 
     expect(matches.length).toBe(2);
-    const paths = matches.map((m) => m.req_path?.text);
-    const methods = matches.map((m) => m.req_method?.text);
+    const paths = matches.map((m) => (m.req_path as CaptureInfo | undefined)?.text);
+    const methods = matches.map((m) => (m.req_method as CaptureInfo | undefined)?.text);
     expect(paths).toContain('"json"');
     expect(paths).toContain('"helpers"');
     expect(methods).toContain("require");
@@ -106,7 +106,7 @@ describe("Ruby capture groups", () => {
   it("constants — estrae costanti", async () => {
     const { matches } = await runCaptureGroup("ruby", "sample.rb", "constants");
     expect(matches.length).toBeGreaterThanOrEqual(1);
-    expect(matches[0].const_name?.text).toBe("PI");
+    expect((matches[0]!.const_name as CaptureInfo | undefined)?.text).toBe("PI");
   });
 });
 
@@ -119,13 +119,13 @@ describe("Python capture groups", () => {
     const { matches } = await runCaptureGroup("python", "sample.py", "classes");
 
     expect(matches.length).toBe(1);
-    expect(matches[0].class_name.text).toBe("Calculator");
+    expect((matches[0]!.class_name as CaptureInfo).text).toBe("Calculator");
   });
 
   it("functions — estrae funzioni e metodi", async () => {
     const { matches } = await runCaptureGroup("python", "sample.py", "functions");
 
-    const funcNames = matches.map((m) => m.func_name?.text);
+    const funcNames = matches.map((m) => (m.func_name as CaptureInfo | undefined)?.text);
     expect(funcNames).toContain("add");
     expect(funcNames).toContain("subtract");
     expect(funcNames).toContain("multiply");
@@ -140,7 +140,7 @@ describe("Python capture groups", () => {
   it("decorators — estrae decoratori", async () => {
     const { matches } = await runCaptureGroup("python", "sample.py", "decorators");
     expect(matches.length).toBe(1);
-    expect(matches[0].decorator.text).toContain("staticmethod");
+    expect((matches[0]!.decorator as CaptureInfo).text).toContain("staticmethod");
   });
 });
 
@@ -152,13 +152,13 @@ describe("JavaScript capture groups", () => {
   it("classes — estrae classi", async () => {
     const { matches } = await runCaptureGroup("javascript", "sample.js", "classes");
     expect(matches.length).toBe(1);
-    expect(matches[0].class_name.text).toBe("Calculator");
+    expect((matches[0]!.class_name as CaptureInfo).text).toBe("Calculator");
   });
 
   it("functions — estrae funzioni e metodi", async () => {
     const { matches } = await runCaptureGroup("javascript", "sample.js", "functions");
 
-    const names = matches.map((m) => m.func_name?.text || m.method_name?.text);
+    const names = matches.map((m) => (m.func_name as CaptureInfo | undefined)?.text || (m.method_name as CaptureInfo | undefined)?.text);
     expect(names).toContain("add");
     expect(names).toContain("subtract");
     expect(names).toContain("multiply");
@@ -172,7 +172,7 @@ describe("JavaScript capture groups", () => {
   it("imports — estrae require e import", async () => {
     const { matches } = await runCaptureGroup("javascript", "sample.js", "imports");
 
-    const requireCalls = matches.filter((m) => m.require_call);
+    const requireCalls = matches.filter((m) => m.require_call !== undefined);
     expect(requireCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -195,12 +195,12 @@ describe("TypeScript capture groups", () => {
   it("classes — estrae classi", async () => {
     const { matches } = await runCaptureGroup("typescript", "sample.ts", "classes");
     expect(matches.length).toBe(1);
-    expect(matches[0].class_name.text).toBe("Calculator");
+    expect((matches[0]!.class_name as CaptureInfo).text).toBe("Calculator");
   });
 
   it("functions — estrae funzioni e metodi", async () => {
     const { matches } = await runCaptureGroup("typescript", "sample.ts", "functions");
-    const names = matches.map((m) => m.func_name?.text || m.method_name?.text);
+    const names = matches.map((m) => (m.func_name as CaptureInfo | undefined)?.text || (m.method_name as CaptureInfo | undefined)?.text);
     expect(names).toContain("add");
     expect(names).toContain("multiply");
   });
@@ -208,13 +208,13 @@ describe("TypeScript capture groups", () => {
   it("interfaces — estrae interfacce", async () => {
     const { matches } = await runCaptureGroup("typescript", "sample.ts", "interfaces");
     expect(matches.length).toBe(1);
-    expect(matches[0].interface_name.text).toBe("Shape");
+    expect((matches[0]!.interface_name as CaptureInfo).text).toBe("Shape");
   });
 
   it("types — estrae type alias", async () => {
     const { matches } = await runCaptureGroup("typescript", "sample.ts", "types");
     expect(matches.length).toBe(1);
-    expect(matches[0].type_name.text).toBe("Point");
+    expect((matches[0]!.type_name as CaptureInfo).text).toBe("Point");
   });
 });
 
@@ -227,7 +227,7 @@ describe("HTML capture groups", () => {
     const { matches } = await runCaptureGroup("html", "sample.html", "elements");
     expect(matches.length).toBeGreaterThanOrEqual(5); // html, body, div, h1, p
 
-    const tags = matches.map((m) => m.tag_name?.text);
+    const tags = matches.map((m) => (m.tag_name as CaptureInfo | undefined)?.text);
     expect(tags).toContain("html");
     expect(tags).toContain("body");
     expect(tags).toContain("div");
@@ -254,7 +254,7 @@ describe("CSS capture groups", () => {
 describe("C/C++ capture groups", () => {
   it("functions — estrae funzioni", async () => {
     const { matches } = await runCaptureGroup("c", "sample.c", "functions");
-    const funcNames = matches.map((m) => m.func_name?.text);
+    const funcNames = matches.map((m) => (m.func_name as CaptureInfo | undefined)?.text);
     expect(funcNames).toContain("add");
     expect(funcNames).toContain("multiply");
   });

@@ -1,0 +1,20 @@
+# Tests and fixtures
+src/__tests__/
+
+# Analysis notes
+analisi-copilot.md
+
+# Kanban board
+kanban.json
+
+# Dev config
+vitest.config.ts
+tsconfig.json
+
+# Git
+.git/
+.gitignore
+
+# Node
+node_modules/
+package-lock.json

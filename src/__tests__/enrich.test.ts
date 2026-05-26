@@ -29,30 +29,32 @@ def bar; end
 # Terzo metodo
 def baz; end`;
 
-    const ctx = await getParser(LANGUAGES.ruby);
+    const ruby = LANGUAGES["ruby"]!;
+    const ctx = await getParser(ruby);
     const { rootNode } = parse(ctx.parser, source);
-    const group = LANGUAGES.ruby.captureGroups.find((g) => g.name === "methods")!;
+    const group = ruby.captureGroups.find((g) => g.name === "methods")!;
     const matches = query(ctx, source, group.query);
 
-    const enriched = enrichMatchesWithDoc(matches, rootNode, LANGUAGES.ruby);
+    const enriched = enrichMatchesWithDoc(matches, rootNode, ruby);
 
     expect(enriched.length).toBe(3);
-    expect(enriched[0]._doc).toBeDefined();
-    expect(enriched[0]._doc!.cleaned).toContain("Primo metodo");
-    expect(enriched[1]._doc!.cleaned).toContain("Secondo metodo");
-    expect(enriched[2]._doc!.cleaned).toContain("Terzo metodo");
+    expect(enriched[0]!._doc).toBeDefined();
+    expect(enriched[0]!._doc!.cleaned).toContain("Primo metodo");
+    expect(enriched[1]!._doc!.cleaned).toContain("Secondo metodo");
+    expect(enriched[2]!._doc!.cleaned).toContain("Terzo metodo");
   });
 
   it("non dovrebbe arricchire match senza commento precedente", async () => {
     const source = `def bare; end`;
-    const ctx = await getParser(LANGUAGES.ruby);
+    const ruby = LANGUAGES["ruby"]!;
+    const ctx = await getParser(ruby);
     const { rootNode } = parse(ctx.parser, source);
-    const group = LANGUAGES.ruby.captureGroups.find((g) => g.name === "methods")!;
+    const group = ruby.captureGroups.find((g) => g.name === "methods")!;
     const matches = query(ctx, source, group.query);
 
-    const enriched = enrichMatchesWithDoc(matches, rootNode, LANGUAGES.ruby);
+    const enriched = enrichMatchesWithDoc(matches, rootNode, ruby);
 
     expect(enriched.length).toBe(1);
-    expect(enriched[0]._doc).toBeUndefined();
+    expect(enriched[0]!._doc).toBeUndefined();
   });
 });
